@@ -93,7 +93,7 @@ function getUsers() {
 // ==========================================
 
 class HidenCloudBot {
-    constructor(cookieStr, username) {
+    constructor(cookieStr, username, userAgent) {
         this.username = username;
         this.originalCookie = cookieStr;
         this.cookieData = {};
@@ -104,7 +104,7 @@ class HidenCloudBot {
             'Connection': 'keep-alive',
             'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
             'sec-ch-ua-mobile': '?0',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Referer': 'https://dash.hidencloud.com/',
         };
@@ -386,9 +386,9 @@ async function launchChrome() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-setuid-sandbox',
+        '--disable-setuid-sandbox',
         `--user-data-dir=${userDataDir}`,
-        '--disable-dev-shm-usage',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        '--disable-dev-shm-usage'
     ];
 
     const chrome = spawn(CHROME_PATH, args, {
@@ -407,6 +407,7 @@ async function launchChrome() {
         throw new Error('Chrome launch failed');
     }
 }
+
 
 async function attemptTurnstileCdp(page) {
     const frames = page.frames();
@@ -507,6 +508,7 @@ async function handleVerification(page) {
 
         let cookieStr = '';
         let loginSuccess = false;
+        let userAgent = '';
 
         try {
             // --- Part A: Login ---
@@ -547,6 +549,10 @@ async function handleVerification(page) {
                 const relevantCookies = allCookies.filter(c => c.domain.includes('hidencloud.com'));
                 cookieStr = relevantCookies.map(c => `${c.name}=${c.value}`).join('; ');
 
+                // Get Real User Agent
+                userAgent = await page.evaluate(() => navigator.userAgent);
+                console.log(`User-Agent: ${userAgent.substring(0, 50)}...`);
+
                 // Export Cookies (Debug/Optional)
                 const turnstileCookie = relevantCookies.find(c => c.name === 'hc_cf_turnstile');
                 if (turnstileCookie) {
@@ -564,7 +570,7 @@ async function handleVerification(page) {
         // --- Part B: Renewal Logic ---
         if (loginSuccess && cookieStr) {
             console.log('\n--- Phase 2: Renewal Operations ---');
-            const bot = new HidenCloudBot(cookieStr, user.username);
+            const bot = new HidenCloudBot(cookieStr, user.username, userAgent);
             if (await bot.init()) {
                 for (const svc of bot.services) {
                     await bot.processService(svc);
