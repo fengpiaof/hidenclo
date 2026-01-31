@@ -102,12 +102,16 @@ class HidenCloudBot {
         this.commonHeaders = {
             'Host': 'dash.hidencloud.com',
             'Connection': 'keep-alive',
-            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            'sec-ch-ua-mobile': '?0',
+            'Upgrade-Insecure-Requests': '1',
             'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Referer': 'https://dash.hidencloud.com/',
+            'Accept-Language': 'en-US,en;q=0.9',
         };
+
+        // If Linux UA, remove explicit sec-ch-ua to avoid mismatch or allow axios to manage?
+        // Actually, best to just keep it generic or sync it. 
+        // For now, let's trust the dynamic UA is key.
 
         this.client = axios.create({
             baseURL: 'https://dash.hidencloud.com',
@@ -127,6 +131,7 @@ class HidenCloudBot {
     }
 
     parseCookieStr(str) {
+        // ... (unchanged)
         if (!str) return;
         str.split(';').forEach(pair => {
             const idx = pair.indexOf('=');
@@ -210,7 +215,16 @@ class HidenCloudBot {
                 this.log('❌ Cookie 无效，无法访问仪表盘');
                 return false;
             }
+
             const $ = cheerio.load(res.data);
+            const title = $('title').text().trim();
+            this.log(`Debug: Page Title = "${title}"`);
+
+            if (title.includes('Just a moment') || title.includes('Attention Required')) {
+                this.log('⚠️ 检测到 Cloudflare 拦截页面 (Axios UA/TLS 指纹不符)');
+                return false;
+            }
+
             this.extractTokens($);
 
             // Parse Services
